@@ -1,4 +1,5 @@
 import argparse
+import heapq
 import requests
 
 def main():
@@ -10,7 +11,6 @@ def main():
     args = parser.parse_args()
 
     if args.quantity is not None:
-        print('Custom quantity: ', args.quantity)
         quantity = args.quantity
     else:
         quantity = 10.0
@@ -18,11 +18,13 @@ def main():
     print(order_book_aggregator(quantity))
 
 
-def order_book_aggregator(quantity):
+def order_book_aggregator(quantity: float):
     """
-    Parameter -> quantity: is the quanity of BTC, by default its 10 but can be custom
-    Return -> A two-key dictionary containing the Ask and Bid price for the quantity of BTC across
-    the aggregated order books of Gemini, Coinbase, and Kraken.
+    Parameters
+    ----------
+    Quanity: quantity of BTC that is being purchased/sold.
+    
+    Combines all of the orderbooks into a heap. And displays the ask/bid price.
     """
 
     asks = []
@@ -35,10 +37,13 @@ def order_book_aggregator(quantity):
     for exchange,url in exhanges:
         asks, bids = fetch_order_book(exchange, url)
 
-    asks.sort()
+    heapq.heapify(asks)
+
     ask_price = order_calculator(asks, quantity)
 
-    bids.sort(key=lambda x: float(x[0]), reverse = True)
+    heapq.heapify(bids)
+    bids = bids[::-1]
+
     bid_price = order_calculator(bids, quantity)
 
     return {"Ask": round(ask_price,2), "Bid": round(bid_price,2)}
@@ -46,13 +51,15 @@ def order_book_aggregator(quantity):
 
 def fetch_order_book(exchange: str, url: str):
     """
-    Parameter -> exchange: name of exchange to fetch order book from
-                url: API url to fetch order book from
-    Return -> A List of all ask and bid orders from the specified exchange.
-    "asks" and "bids" are nested lists.
+    Parameters
+    ----------
+    
+    exchange: name of the exchange to get the orderbook from
 
-    This function fetches the order book from the specified exchange API and separates the
-    bids and asks from each other.
+    url: the API link that corresponds to an orderbook
+
+    This function gets the order book from the specified exchange API and separates the
+    bids and asks from each other. While returning a nested list of all bids and asks
     """
 
     cache_key = (exchange, url)
@@ -69,7 +76,7 @@ def fetch_order_book(exchange: str, url: str):
         if exchange == "Coinbase":
             order_book = [response["asks"], response["bids"]]
 
-        else: #exchange == "Kraken"
+        else:
             order_book = [response["result"]["XXBTZUSD"]["asks"], \
                 response["result"]["XXBTZUSD"]["bids"]]
 
@@ -78,8 +85,11 @@ def fetch_order_book(exchange: str, url: str):
 
 def orderbook_flattener(response):
     """
-    Parameter -> response: a JSON object of ask or bid order book data
-    Return -> A list of orders in the format [price, quantity]
+    Parameters
+    ----------
+    response: A JSON object of ask or bid order book data
+
+    Returns a list of orders [price, amount]
 
     This function is designed to flatten an order book so all exchanges have the same level.
     """
@@ -90,12 +100,14 @@ def orderbook_flattener(response):
 
 def order_calculator(orders: list[list[float, float]], quantity: float):
     """
-    Parameter -> orders: a list of ask or bid orders in the format [price, quantity]
-                quantity: the number of BTC in the order
-    Return -> price: the total price of the order
+    Parameters
+    ----------
+    orders: A nested list of floats that contains ask or bid orders in the format [price, quantity]
+
+    quantity: The number of BTC in the order
 
     This function parses the orders and calculates the total price to buy or sell the
-    specified quantity of BTC.
+    specified quantity of BTC. And returns the price.
     """
     
     price = 0
@@ -103,6 +115,8 @@ def order_calculator(orders: list[list[float, float]], quantity: float):
         if quantity >= float(order[1]):
             price += float(order[0]) * float(order[1])
             quantity -= float(order[1])
+            if quantity == 0:
+                break
         else:
             price += float(order[0]) * quantity
             break
