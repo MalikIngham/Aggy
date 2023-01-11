@@ -1,4 +1,4 @@
-# OrderBookAggregator
+# Aggy
 
 An Order Book Aggregator for Coinbase, Gemini, and Kraken.
 
